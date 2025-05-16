@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Dashboard Inspection</title>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 30px;
+        }
+        .graph {
+            width: 90%;
+            margin: auto;
+            margin-top: 30px;
+            background-color: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        .dashboard-section {
+            margin-top: 40px;
+            background-color: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        .section-title {
+            color: #444;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #eee;
+        }
+        .graph-row {
+            display: flex;
+            flex-wrap: wrap;
+            margin: 0 -15px;
+        }
+        .graph-col {
+            flex: 1;
+            min-width: 300px;
+            padding: 0 15px;
+            margin-bottom: 30px;
+        }
+        .refresh-btn {
+            float: right;
+            padding: 10px 20px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-bottom: 20px;
+        }
+        .refresh-btn:hover {
+            background-color: #45a049;
+        }
+    </style>
+</head>
+<body>
+    <h1 style="text-align:center;">📊 Real-Time Inspection Dashboard</h1>
+    
+    <button class="refresh-btn" onclick="refresh()">Refresh</button>
+    
+    <!-- Original Graphs Section -->
+    <div class="dashboard-section">
+        <h2 class="section-title">Inspection Summary</h2>
+        <div class="graph" id="summary_graph"></div>
+        <div class="graph" id="daily_graph"></div>
+        <div class="graph" id="monthly_graph"></div>
+        <div class="graph" id="failures_graph"></div>
+    </div>
+    
+    <!-- Category Analysis Section -->
+    <div class="dashboard-section">
+        <h2 class="section-title">Category Analysis</h2>
+        <div class="graph-row">
+            <div class="graph-col">
+                <div class="graph" id="category_distribution_graph"></div>
+            </div>
+            <div class="graph-col">
+                <div class="graph" id="subcategory_graph"></div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Seasonal Analysis Section -->
+    <div class="dashboard-section">
+        <h2 class="section-title">Seasonal Analysis</h2>
+        <div class="graph-row">
+            <div class="graph-col">
+                <div class="graph" id="season_distribution_graph"></div>
+            </div>
+            <div class="graph-col">
+                <div class="graph" id="day_of_week_graph"></div>
+            </div>
+        </div>
+        <div class="graph" id="month_totals_graph"></div>
+    </div>
+    
+    <!-- Outcome Analysis Section -->
+    <div class="dashboard-section">
+        <h2 class="section-title">Outcome Analysis by Season</h2>
+        <div class="graph" id="season_results_graph"></div>
+    </div>
+    
+    <script>
+        function fetchDataAndUpdateGraph(url, callback) {
+            fetch(url)
+                .then(response => response.json())
+                .then(data => callback(data))
+                .catch(error => console.error('Error fetching data:', error));
+        }
+        
+        // Original graphs
+        function drawSummary(data) {
+            const trace = {
+                labels: data.map(d => d.key),
+                values: data.map(d => d.value),
+                type: 'pie'
+            };
+            Plotly.newPlot('summary_graph', [trace], { 
+                title: "Results Summary",
+                height: 400
+            });
+        }
+        
+        function drawDaily(data) {
+            const x = data.map(d => d.date);
+            const y = data.map(d => d.count);
+            const trace = { x, y, type: 'bar', name: 'Daily Inspections' };
+            Plotly.newPlot('daily_graph', [trace], { 
+                title: "Daily Inspections",
+                height: 400
+            });
+        }
+        
+        function drawMonthly(data) {
+            const x = data.map(d => d.month);
+            const y = data.map(d => d.count);
+            const trace = { x, y, type: 'line', name: 'Monthly Trend' };
+            Plotly.newPlot('monthly_graph', [trace], { 
+                title: "Monthly Trend",
+                height: 400
+            });
+        }
+        
+        function drawFailures(data) {
+            if (data.length === 0) {
+                document.getElementById('failures_graph').innerHTML = 
+                    '<p style="text-align:center;">No data available for failures by location</p>';
+                return;
+            }
+            
+            const traces = [];
+            const locations = [...new Set(data.map(d => d.street_number))];
+            
+            locations.forEach(location => {
+                const locationData = data.filter(d => d.street_number === location);
+                traces.push({
+                    x: locationData.map(d => d.result),
+                    y: locationData.map(d => d.count),
+                    type: 'bar',
+                    name: `Location ${location}`
+                });
+            });
+            
+            Plotly.newPlot('failures_graph', traces, { 
+                title: "Failures by Location",
+                height: 400,
+                barmode: 'group'
+            });
+        }
+        
+        // New graph functions
+        function drawCategoryDistribution(data) {
+            const trace = {
+                x: data.map(d => d.category_name),
+                y: data.map(d => d.count),
+                type: 'bar',
+                marker: {
+                    color: 'rgb(55, 83, 109)'
+                }
+            };
+            Plotly.newPlot('category_distribution_graph', [trace], { 
+                title: "Inspection Category Distribution",
+                height: 400
+            });
+        }
+        
+        function drawSubcategoryFrequency(data) {
+            const trace = {
+                labels: data.map(d => d.category_name),
+                values: data.map(d => d.count),
+                type: 'pie',
+                hole: 0.4
+            };
+            Plotly.newPlot('subcategory_graph', [trace], { 
+                title: "Subcategory Frequency",
+                height: 400
+            });
+        }
+        
+        function drawSeasonDistribution(data) {
+            const trace = {
+                labels: data.map(d => d.season),
+                values: data.map(d => d.total),
+                type: 'pie',
+                marker: {
+                    colors: ['#FF9AA2', '#FFDAC1', '#B5EAD7', '#C7CEEA']
+                }
+            };
+            Plotly.newPlot('season_distribution_graph', [trace], { 
+                title: "Inspection Distribution by Season",
+                height: 400
+            });
+        }
+        
+        function drawDayOfWeek(data) {
+            const trace = {
+                x: data.map(d => d.day),
+                y: data.map(d => d.total),
+                type: 'bar',
+                marker: {
+                    color: 'rgb(158, 202, 225)'
+                }
+            };
+            Plotly.newPlot('day_of_week_graph', [trace], { 
+                title: "Inspections by Day of Week",
+                height: 400
+            });
+        }
+        
+        function drawMonthTotals(data) {
+            const trace = {
+                x: data.map(d => d.month),
+                y: data.map(d => d.total),
+                type: 'line',
+                marker: {
+                    color: 'rgb(86, 180, 233)'
+                }
+            };
+            Plotly.newPlot('month_totals_graph', [trace], { 
+                title: "Monthly Inspection Totals",
+                height: 400
+            });
+        }
+        
+        function drawSeasonResults(data) {
+            // Group by season and result_type
+            const seasons = [...new Set(data.map(d => d.season))];
+            const resultTypes = [...new Set(data.map(d => d.result_type))];
+            
+            const traces = resultTypes.map(result => {
+                return {
+                    x: seasons,
+                    y: seasons.map(season => {
+                        const match = data.find(d => d.season === season && d.result_type === result);
+                        return match ? match.count : 0;
+                    }),
+                    type: 'bar',
+                    name: result
+                };
+            });
+            
+            Plotly.newPlot('season_results_graph', traces, { 
+                title: "Results by Season",
+                height: 500,
+                barmode: 'group'
+            });
+        }
+        
+        function refresh() {
+            // Original endpoints
+            fetchDataAndUpdateGraph("/api/results_summary", drawSummary);
+            fetchDataAndUpdateGraph("/api/daily_inspections", drawDaily);
+            fetchDataAndUpdateGraph("/api/monthly_trend", drawMonthly);
+            fetchDataAndUpdateGraph("/api/failures_by_location", drawFailures);
+            
+            // New endpoints for additional databases
+            fetchDataAndUpdateGraph("/api/category_distribution", drawCategoryDistribution);
+            fetchDataAndUpdateGraph("/api/subcategory_frequency", drawSubcategoryFrequency);
+            fetchDataAndUpdateGraph("/api/seasonal_totals", drawSeasonDistribution);
+            fetchDataAndUpdateGraph("/api/day_of_week_totals", drawDayOfWeek);
+            fetchDataAndUpdateGraph("/api/month_totals", drawMonthTotals);
+            fetchDataAndUpdateGraph("/api/season_results", drawSeasonResults);
+        }
+        
+        // Initial load
+        refresh();
+        setInterval(refresh, 500);
+    </script>
+</body>
+</html>
